@@ -1,0 +1,588 @@
+"""Bright, large-type portrait deck for phone / Douyin."""
+import os
+
+from pptx import Presentation
+from pptx.dml.color import RGBColor
+from pptx.enum.shapes import MSO_SHAPE
+from pptx.enum.text import MSO_ANCHOR, PP_ALIGN
+from pptx.oxml.ns import qn
+from pptx.util import Inches, Pt
+
+ROOT = r"E:\AZ\deepseek H\gongzuoqu\AirLink"
+OUT = os.path.join(ROOT, "AirLink-宣传-竖屏-亮色.pptx")
+ASSETS = os.path.join(ROOT, "assets")
+
+BG      = RGBColor(0xF5, 0xF7, 0xFB)
+BG2     = RGBColor(0xEC, 0xF1, 0xF9)
+CARD    = RGBColor(0xFF, 0xFF, 0xFF)
+LINE    = RGBColor(0xE2, 0xE8, 0xF2)
+INK     = RGBColor(0x0F, 0x17, 0x2A)
+SUB     = RGBColor(0x4B, 0x57, 0x6E)
+MUTED   = RGBColor(0x7C, 0x87, 0x9C)
+ACC     = RGBColor(0x25, 0x63, 0xEB)
+ACC2    = RGBColor(0x7C, 0x3A, 0xED)
+GREEN   = RGBColor(0x04, 0x7A, 0x56)
+WARN    = RGBColor(0xC2, 0x4E, 0x0A)
+
+FONT = "Microsoft YaHei"
+W, H = 7.5, 13.333
+X0, CW = 0.60, 6.30
+
+prs = Presentation()
+prs.slide_width = Inches(W)
+prs.slide_height = Inches(H)
+BLANK = prs.slide_layouts[6]
+
+
+def set_font(run, size=None, bold=None, color=None, name=FONT, spacing=None):
+    f = run.font
+    f.name = name
+    if size is not None:
+        f.size = Pt(size)
+    if bold is not None:
+        f.bold = bold
+    if color is not None:
+        f.color.rgb = color
+    rPr = run._r.get_or_add_rPr()
+    for tag in ("a:ea", "a:cs"):
+        el = rPr.find(qn(tag))
+        if el is None:
+            el = rPr.makeelement(qn(tag), {})
+            rPr.append(el)
+        el.set("typeface", name)
+    if spacing is not None:
+        rPr.set("spc", str(int(spacing * 100)))
+
+
+def textbox(slide, x, y, w, h, text, size=12, color=INK, bold=False,
+            align=PP_ALIGN.LEFT, anchor=MSO_ANCHOR.TOP, line=1.3, spacing=None):
+    tb = slide.shapes.add_textbox(Inches(x), Inches(y), Inches(w), Inches(h))
+    tf = tb.text_frame
+    tf.word_wrap = True
+    tf.margin_left = tf.margin_right = tf.margin_top = tf.margin_bottom = 0
+    tf.vertical_anchor = anchor
+    p = tf.paragraphs[0]
+    p.alignment = align
+    p.line_spacing = line
+    r = p.add_run()
+    r.text = text
+    set_font(r, size, bold, color, spacing=spacing)
+    return tb
+
+
+def rect(slide, x, y, w, h, fill=None, line=None, radius=None, lw=1.0):
+    kind = MSO_SHAPE.ROUNDED_RECTANGLE if radius else MSO_SHAPE.RECTANGLE
+    sh = slide.shapes.add_shape(kind, Inches(x), Inches(y), Inches(w), Inches(h))
+    if radius:
+        sh.adjustments[0] = radius
+    if fill is None:
+        sh.fill.background()
+    else:
+        sh.fill.solid()
+        sh.fill.fore_color.rgb = fill
+    if line is None:
+        sh.line.fill.background()
+    else:
+        sh.line.color.rgb = line
+        sh.line.width = Pt(lw)
+    sh.shadow.inherit = False
+    spPr = sh._element.spPr
+    for old in spPr.findall(qn("a:effectLst")):
+        spPr.remove(old)
+    spPr.append(spPr.makeelement(qn("a:effectLst"), {}))
+    return sh
+
+
+def shape_text(sh, text, size=12, color=INK, bold=False, align=PP_ALIGN.CENTER):
+    tf = sh.text_frame
+    tf.margin_left = tf.margin_right = Inches(0.05)
+    tf.margin_top = tf.margin_bottom = 0
+    tf.vertical_anchor = MSO_ANCHOR.MIDDLE
+    p = tf.paragraphs[0]
+    p.alignment = align
+    r = p.add_run()
+    r.text = text
+    set_font(r, size, bold, color)
+
+
+def gradient_bg(slide, top=BG, bottom=BG2):
+    sh = rect(slide, -0.05, -0.05, W + 0.1, H + 0.1, fill=top)
+    sh.fill.gradient()
+    sh.fill.gradient_angle = 90
+    stops = sh.fill.gradient_stops
+    stops[0].color.rgb = top
+    stops[0].position = 0.0
+    stops[1].color.rgb = bottom
+    stops[1].position = 1.0
+    return sh
+
+
+def wash(slide, x, y, w, h, color=ACC, alpha=0.10):
+    sh = rect(slide, x, y, w, h, fill=color, radius=0.5)
+    sh.fill.gradient()
+    sh.fill.gradient_angle = 60
+    stops = sh.fill.gradient_stops
+    stops[0].color.rgb = color
+    stops[1].color.rgb = BG
+    for st, a in zip(stops, (int(alpha * 100000), 0)):
+        srgb = st.color._xFill.find(qn("a:srgbClr"))
+        srgb.append(srgb.makeelement(qn("a:alpha"), {"val": str(a)}))
+    return sh
+
+
+def new_slide(top=BG, bottom=BG2):
+    s = prs.slides.add_slide(BLANK)
+    gradient_bg(s, top, bottom)
+    return s
+
+
+def footer(slide, idx):
+    textbox(slide, X0, 12.62, 4.2, 0.3, "AirLink · 隔空快传", 9.5, MUTED)
+    textbox(slide, W - 1.25, 12.62, 0.65, 0.3, f"{idx:02d}", 9.5, MUTED, align=PP_ALIGN.RIGHT)
+
+
+def head(slide, kick, ttl, lead_text=None, kick_y=0.78, title_y=1.14, lead_y=2.16):
+    textbox(slide, X0, kick_y, 5.6, 0.3, kick, 11, ACC, bold=True, spacing=1.8)
+    textbox(slide, X0, title_y, CW, 0.9, ttl, 33, INK, bold=True, line=1.22)
+    if lead_text:
+        textbox(slide, X0, lead_y, CW, 0.8, lead_text, 13.5, SUB, line=1.5)
+
+
+def card(slide, x, y, w, h, fill=CARD, line=LINE, radius=0.07):
+    return rect(slide, x, y, w, h, fill=fill, line=line, radius=radius)
+
+
+def transition(slide, kind="fade"):
+    from lxml import etree
+    xml = ('<p:transition xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main" '
+           f'spd="med"><p:{kind}/></p:transition>')
+    slide._element.append(etree.fromstring(xml))
+
+
+# =================================================================== 01 封面
+s = new_slide(RGBColor(0xFA, 0xFB, 0xFE), RGBColor(0xEA, 0xF0, 0xFA))
+
+
+badge = rect(s, X0, 3.10, 2.30, 0.44, fill=RGBColor(0xE4, 0xEC, 0xFC), line=RGBColor(0xC7, 0xD8, 0xF8), radius=0.5)
+shape_text(badge, "Windows · Android", 11, ACC, bold=True)
+
+textbox(s, X0, 3.78, CW, 1.15, "隔空快传", 54, INK, bold=True, line=1.05)
+textbox(s, X0, 5.06, CW, 0.45, "AirLink", 20, ACC, bold=True, spacing=3)
+textbox(s, X0, 5.66, CW, 0.45, "两台设备之间，文件直达。", 18, INK, line=1.35)
+textbox(s, X0, 6.32, CW, 0.95,
+        "一个 exe、一个 apk，双击即用。\n不需要账号，也不经过任何服务器。",
+        13, SUB, line=1.65)
+
+pills = ["局域网直连", "广域网可达", "无账号", "无服务器"]
+for i, p in enumerate(pills):
+    px = X0 + (i % 2) * 3.22
+    py = 7.72 + (i // 2) * 0.62
+    sh = rect(s, px, py, 3.02, 0.50, fill=CARD, line=LINE, radius=0.5)
+    shape_text(sh, p, 11.5, SUB, bold=True)
+
+rect(s, X0, 9.28, CW, 0.012, fill=RGBColor(0xD8, 0xE1, 0xEF))
+textbox(s, X0, 9.52, CW, 0.9,
+        "单文件运行 · 无运行时依赖\nWindows 与 Android 双端同协议",
+        10.5, MUTED, line=1.7)
+
+# =================================================================== 02 痛点
+s = new_slide()
+head(s, "THE PROBLEM", "传个文件，\n为什么这么难？", "设备越来越多，传文件却还是要绕一大圈。", lead_y=2.34)
+
+pains = [
+    ("线", "找不到数据线", "线不在身边，接口还对不上"),
+    ("压", "聊天软件会压缩", "图片变糊，文件夹传不动"),
+    ("等", "网盘要排队", "登录、上传、下载、再等"),
+    ("墙", "跨网络就断", "离开 Wi-Fi，工具全失效"),
+]
+y = 3.20
+for glyph, t, d in pains:
+    card(s, X0, y, CW, 1.62)
+    ring = rect(s, X0 + 0.34, y + 0.42, 0.78, 0.78,
+                fill=RGBColor(0xFD, 0xF0, 0xE8), line=RGBColor(0xF3, 0xD3, 0xBC), radius=0.5)
+    shape_text(ring, glyph, 20, WARN, bold=True)
+    textbox(s, X0 + 1.36, y + 0.42, CW - 1.7, 0.4, t, 17, INK, bold=True)
+    textbox(s, X0 + 1.36, y + 0.92, CW - 1.7, 0.4, d, 12.5, SUB)
+    y += 1.80
+
+bar = rect(s, X0, y + 0.10, CW, 1.30, fill=RGBColor(0xE8, 0xF0, 0xFF), line=RGBColor(0xC7, 0xD8, 0xF8), radius=0.1)
+textbox(s, X0 + 0.38, y + 0.34, CW - 0.76, 1.0,
+        "共同点：中间永远隔着别人。\nAirLink 把它去掉。", 14, INK, line=1.6, bold=True)
+footer(s, 2)
+
+# =================================================================== 03 定义
+s = new_slide()
+head(s, "WHAT IT IS", "一个 exe，一个 apk\n两台设备直接对话", lead_y=2.34)
+
+panels = [
+    ("它不做的事", [("不需要账号", "没有登录、没有会员"),
+                    ("不需要服务器", "文件不落到别人机器"),
+                    ("不需要运行时", "不装 .NET、不装 Java")], WARN, 3.16, 3.62),
+    ("它做的事", [("直接发现", "同一网络自动出现"),
+                  ("直接传输", "不压缩、不转码"),
+                  ("直接浏览", "像翻自己的文件夹")], GREEN, 7.06, 3.62),
+]
+for title_t, items, accent, py, ph in panels:
+    card(s, X0, py, CW, ph)
+    rect(s, X0, py, 0.08, ph, fill=accent)
+    textbox(s, X0 + 0.38, py + 0.30, CW - 0.8, 0.35, title_t, 13, accent, bold=True)
+    for j, (t, d) in enumerate(items):
+        y = py + 0.86 + j * 0.88
+        textbox(s, X0 + 0.38, y, CW - 0.8, 0.34, t, 15.5, INK, bold=True)
+        textbox(s, X0 + 0.38, y + 0.40, CW - 0.8, 0.32, d, 11.5, SUB)
+
+textbox(s, X0, 11.02, CW, 0.9,
+        "所有新功能都要落进这六个框里，\n否则不做。", 11, MUTED, line=1.7)
+footer(s, 3)
+
+# =================================================================== 04 形态
+s = new_slide()
+head(s, "TWO BUILDERS", "两个程序\n都是单文件", "小到可以直接发过去。", lead_y=2.34)
+
+for i, (os_name, size, unit, facts, accent) in enumerate([
+    ("Windows", "699", "KB", ["单个 exe，静态链接", "无 DLL 依赖，拷走即用", "Win7 及以上 64 位"], ACC),
+    ("Android", "333", "KB", ["纯 Java，不用 AndroidX", "minSdk 21（Android 5.0+）", "已签名，可直接安装"], ACC2),
+]):
+    y = 3.00 + i * 3.86
+    card(s, X0, y, CW, 3.56)
+    textbox(s, X0 + 0.42, y + 0.36, 3.0, 0.34, os_name, 12, accent, bold=True, spacing=1.8)
+    textbox(s, X0 + 0.42, y + 0.82, 3.4, 1.05, size, 56, INK, bold=True)
+    textbox(s, X0 + 2.52, y + 1.34, 1.3, 0.4, unit, 17, MUTED)
+    for j, f in enumerate(facts):
+        textbox(s, X0 + 0.42, y + 2.14 + j * 0.44, CW - 0.84, 0.34, "·  " + f, 12, SUB)
+
+textbox(s, X0, 10.96, CW, 0.9,
+        "体量来自取舍：界面全部自绘，\n零框架、零图片资源、零冗余依赖。", 11, MUTED, line=1.7)
+footer(s, 4)
+
+# =================================================================== 05 能力
+s = new_slide()
+head(s, "CAPABILITIES", "六件事\n一件不少", "从发现到保活，构成完整链路。", lead_y=2.34)
+
+caps = [
+    ("01", "自动发现", "UDP 广播，自动入列"),
+    ("02", "扫码连接", "扫一下就连上"),
+    ("03", "广域网直连", "IPv6 免端口映射"),
+    ("04", "双向浏览", "两端目录互相可见"),
+    ("05", "记录同步", "一开始传就入记录"),
+    ("06", "熄屏保活", "锁屏也不掉线"),
+]
+cw2, ch2, gx, gy = 3.02, 2.44, 0.26, 0.32
+for i, (num, t, d) in enumerate(caps):
+    col, row = i % 2, i // 2
+    x = X0 + col * (cw2 + gx)
+    y = 3.02 + row * (ch2 + gy)
+    card(s, x, y, cw2, ch2)
+    textbox(s, x + 0.32, y + 0.54, 1.0, 0.32, num, 13, ACC, bold=True)
+    textbox(s, x + 0.32, y + 1.02, cw2 - 0.64, 0.38, t, 15.5, INK, bold=True)
+    textbox(s, x + 0.32, y + 1.60, cw2 - 0.64, 0.6, d, 11.5, SUB, line=1.45)
+footer(s, 5)
+
+# =================================================================== 06 发现
+s = new_slide()
+head(s, "STEP 01 · DISCOVERY", "打开就能\n看见对方", "不用问 IP，也不用加好友。", lead_y=2.34)
+
+for i, (t, d) in enumerate([
+    ("广播探询", "定时向局域网发一条 UDP 报文"),
+    ("即时应答", "对方把名称、地址、端口回给你"),
+    ("列表呈现", "几秒内出现，点一下就发"),
+]):
+    y = 3.16 + i * 1.06
+    rect(s, X0, y + 0.12, 0.11, 0.11, fill=ACC, radius=0.5)
+    textbox(s, X0 + 0.32, y, CW - 0.32, 0.36, t, 15.5, INK, bold=True)
+    textbox(s, X0 + 0.32, y + 0.42, CW - 0.32, 0.4, d, 11.5, SUB)
+
+s.shapes.add_picture(os.path.join(ASSETS, "discovery_light.gif"),
+                     Inches(X0), Inches(6.62), width=Inches(CW))
+textbox(s, X0, 10.10, CW, 0.4, "动图：设备发现（放映时循环播放）", 10, MUTED)
+textbox(s, X0, 10.56, CW, 0.9, "同一 Wi-Fi、同一路由器，\n手机开热点也算。", 11, SUB, line=1.65)
+footer(s, 6)
+
+# =================================================================== 07 扫码
+s = new_slide()
+head(s, "STEP 02 · PAIRING", "扫一下就配好了", "二维码里装着完整连接信息。", lead_y=2.34)
+
+qr = card(s, X0, 3.02, 2.42, 2.42, fill=RGBColor(0xF2, 0xF6, 0xFD), line=RGBColor(0xD3, 0xDF, 0xF2), radius=0.08)
+textbox(s, X0 + 0.1, 4.04, 2.22, 0.42, "二维码", 12, ACC, bold=True, align=PP_ALIGN.CENTER)
+
+codes = [("局域网码", "airlink://192.168.1.5:45678", ACC),
+         ("广域网码", "airlink://[240e:…]:45678?code=017903", ACC2)]
+for i, (t, d, c) in enumerate(codes):
+    y = 3.12 + i * 1.20
+    textbox(s, X0 + 2.72, y, 2.2, 0.32, t, 12, c, bold=True)
+    textbox(s, X0 + 2.72, y + 0.38, CW - 2.72, 0.7, d, 10, SUB, line=1.45)
+
+textbox(s, X0, 5.86, CW, 1.9,
+        "同一个扫码入口，自动区分：\n"
+        "局域网码直接建会话；\n"
+        "广域网码先过配对码，再握手。",
+        12.5, SUB, line=1.8)
+
+card(s, X0, 7.84, CW, 1.72, fill=RGBColor(0xF2, 0xF6, 0xFD), line=RGBColor(0xD3, 0xDF, 0xF2))
+textbox(s, X0 + 0.38, 8.10, CW - 0.76, 0.36, "为什么用二维码", 13, INK, bold=True)
+textbox(s, X0 + 0.38, 8.56, CW - 0.76, 0.8,
+        "IPv6 地址有 39 个字符，手输几乎不可能。", 11, SUB, line=1.55)
+footer(s, 7)
+
+# =================================================================== 08 广域网
+s = new_slide()
+head(s, "STEP 03 · WIDE AREA", "不在同一个网络\n也能直连", "优先 IPv6，其次端口映射。", lead_y=2.34)
+
+for i, (t, d) in enumerate([
+    ("IPv6 直连", "地址全球可达，无需穿透 NAT"),
+    ("自动兜底", "没有 IPv6 就请路由器开端口"),
+    ("双栈同端口", "一个监听同时服务两种协议"),
+]):
+    y = 3.16 + i * 1.06
+    rect(s, X0, y + 0.12, 0.11, 0.11, fill=ACC2, radius=0.5)
+    textbox(s, X0 + 0.32, y, CW - 0.32, 0.36, t, 15.5, INK, bold=True)
+    textbox(s, X0 + 0.32, y + 0.42, CW - 0.32, 0.4, d, 11.5, SUB)
+
+s.shapes.add_picture(os.path.join(ASSETS, "direct_light.gif"),
+                     Inches(X0), Inches(6.62), width=Inches(CW))
+textbox(s, X0, 10.10, CW, 0.4, "动图：点对点直连（放映时循环播放）", 10, MUTED)
+footer(s, 8)
+
+# =================================================================== 09 安全
+s = new_slide()
+head(s, "SECURITY", "开在公网上\n也不是谁都能进", "把端口开到互联网，就必须有闸门。", lead_y=2.34)
+
+steps = [
+    ("非内网来源", "地址不在 10. / 192.168. 段内"),
+    ("必须出示配对码", "6 位数字，与电脑上一致"),
+    ("校验通过", "该地址 10 分钟内免检"),
+]
+y = 3.20
+for i, (t, d) in enumerate(steps):
+    card(s, X0, y, CW, 1.56)
+    num = rect(s, X0 + 0.34, y + 0.46, 0.64, 0.64,
+               fill=RGBColor(0xE6, 0xEE, 0xFD), line=RGBColor(0xC7, 0xD8, 0xF8), radius=0.5)
+    shape_text(num, str(i + 1), 15, ACC, bold=True)
+    textbox(s, X0 + 1.20, y + 0.34, CW - 1.5, 0.4, t, 16, INK, bold=True)
+    textbox(s, X0 + 1.20, y + 0.84, CW - 1.5, 0.4, d, 11.5, SUB)
+    y += 1.78
+
+card(s, X0, 8.60, CW, 1.72, fill=RGBColor(0xE9, 0xF7, 0xF0), line=RGBColor(0xBF, 0xE4, 0xD2))
+textbox(s, X0 + 0.38, 8.86, CW - 0.76, 0.36, "内网不受影响", 13, GREEN, bold=True)
+textbox(s, X0 + 0.38, 9.32, CW - 0.76, 0.8,
+        "同一个局域网仍然免密直连，\n安全不该让日常变麻烦。", 11, SUB, line=1.55)
+footer(s, 9)
+
+# =================================================================== 10 浏览
+s = new_slide()
+head(s, "BROWSE", "两边的文件\n都像在自己电脑上", "同一套目录树，双向可读。", lead_y=2.34)
+
+cols = [
+    ("手机看电脑", ["进入任意目录", "下载文件到手机", "删除对方文件"], ACC),
+    ("电脑看手机", ["浏览手机存储", "取回照片与文档", "清理不需要的文件"], ACC2),
+]
+for i, (t, items, accent) in enumerate(cols):
+    y = 3.16 + i * 3.00
+    card(s, X0, y, CW, 2.76)
+    rect(s, X0, y, 0.08, 2.76, fill=accent)
+    textbox(s, X0 + 0.40, y + 0.30, CW - 0.8, 0.36, t, 16, INK, bold=True)
+    for j, it in enumerate(items):
+        textbox(s, X0 + 0.40, y + 0.92 + j * 0.50, CW - 0.8, 0.34, "·  " + it, 12.5, SUB)
+
+card(s, X0, 9.20, CW, 1.56, fill=RGBColor(0xF2, 0xF6, 0xFD), line=RGBColor(0xD3, 0xDF, 0xF2))
+textbox(s, X0 + 0.38, 9.46, CW - 0.76, 1.0,
+        "大文件按块流式传输，不占内存；\n中断后可以重新发起。", 11.5, SUB, line=1.6)
+footer(s, 10)
+
+# =================================================================== 11 传输
+s = new_slide()
+head(s, "TRANSFER", "一开始传\n记录里就有了", "不用等结束才知道发生了什么。", lead_y=2.34)
+
+for i, (t, d) in enumerate([
+    ("即时入列", "启动瞬间就写入一条记录"),
+    ("实时进度", "进度、速度、剩余量同步刷新"),
+    ("状态归位", "完成后原地更新，不会重复"),
+]):
+    y = 3.16 + i * 1.06
+    rect(s, X0, y + 0.12, 0.11, 0.11, fill=ACC, radius=0.5)
+    textbox(s, X0 + 0.32, y, CW - 0.32, 0.36, t, 15.5, INK, bold=True)
+    textbox(s, X0 + 0.32, y + 0.42, CW - 0.32, 0.4, d, 11.5, SUB)
+
+s.shapes.add_picture(os.path.join(ASSETS, "transfer_light.gif"),
+                     Inches(X0), Inches(6.62), width=Inches(CW))
+textbox(s, X0, 10.10, CW, 0.4, "动图：传输进度（放映时循环播放）", 10, MUTED)
+footer(s, 11)
+
+# =================================================================== 12 保活
+s = new_slide()
+head(s, "ALWAYS ON", "熄屏之后\n链路还在", "锁屏被系统掐断，是最常见的死法。", lead_y=2.34)
+
+items = [
+    ("前台服务", "常驻通知，优先级最高", ACC),
+    ("唤醒锁", "定时续约，CPU 不休眠", ACC),
+    ("Wi-Fi 锁", "逐级降级，射频不睡", ACC2),
+    ("锁屏重武装", "亮灭屏事件立即重新拉活", ACC2),
+]
+y = 3.16
+for t, d, accent in items:
+    card(s, X0, y, CW, 1.52)
+    rect(s, X0, y, 0.08, 1.52, fill=accent)
+    textbox(s, X0 + 0.40, y + 0.30, CW - 0.8, 0.36, t, 16, INK, bold=True)
+    textbox(s, X0 + 0.40, y + 0.82, CW - 0.8, 0.4, d, 11.5, SUB)
+    y += 1.74
+
+textbox(s, X0, y + 0.10, CW, 0.9,
+        "设置页能直接看到保活是否成功，\n出问题可以自己判断。", 11, MUTED, line=1.7)
+footer(s, 12)
+
+# =================================================================== 13 指标
+s = new_slide(RGBColor(0xFA, 0xFB, 0xFE), RGBColor(0xEC, 0xF1, 0xF9))
+head(s, "BY THE NUMBERS", "几个能对得上的数字", "全部取自实际构建产物。", lead_y=2.34)
+
+stats = [
+    ("699", "KB", "电脑端体积"),
+    ("333", "KB", "手机端体积"),
+    ("0", "个", "运行时依赖"),
+    ("6", "字节", "协议头开销"),
+    ("2", "个", "网络端口"),
+    ("10", "分钟", "配对码有效期"),
+]
+cw3, ch3, gx3, gy3 = 3.02, 2.28, 0.26, 0.30
+for i, (num, unit, label) in enumerate(stats):
+    col, row = i % 2, i // 2
+    x = X0 + col * (cw3 + gx3)
+    y = 2.98 + row * (ch3 + gy3)
+    card(s, x, y, cw3, ch3)
+    textbox(s, x + 0.34, y + 0.54, 2.6, 0.9, num, 46, INK, bold=True)
+    textbox(s, x + 0.34 + len(num) * 0.36 + 0.08, y + 0.90, 1.2, 0.34, unit, 13, ACC, bold=True)
+    textbox(s, x + 0.34, y + 1.60, cw3 - 0.68, 0.34, label, 11.5, MUTED)
+footer(s, 13)
+
+# =================================================================== 14 架构
+s = new_slide()
+head(s, "ARCHITECTURE", "三层结构\n两端逐字节一致", "两端共用同一份协议定义。", lead_y=2.34)
+
+layers = [
+    ("发现层", "UDP 45679", "广播探询与应答，仅局域网可见", ACC, 1.86),
+    ("传输层", "TCP 45678", "ALFT 魔数 + 版本 + 类型", ACC2, 1.86),
+    ("应用层", "12 类消息", "推文件 · 列目录 · 取文件 · 心跳\n会话 · 删除 · 记录同步 · 配对认证", GREEN, 2.30),
+]
+y = 3.06
+for name, port, desc, accent, h in layers:
+    card(s, X0, y, CW, h)
+    rect(s, X0, y, 0.08, h, fill=accent)
+    textbox(s, X0 + 0.40, y + 0.30, 2.2, 0.36, name, 15.5, INK, bold=True)
+    tag = rect(s, X0 + 2.62, y + 0.28, 1.86, 0.38,
+               fill=RGBColor(0xF2, 0xF6, 0xFD), line=RGBColor(0xD3, 0xDF, 0xF2), radius=0.5)
+    shape_text(tag, port, 10, accent, bold=True)
+    textbox(s, X0 + 0.40, y + 0.88, CW - 0.8, 1.1, desc, 11, SUB, line=1.55)
+    y += h + 0.26
+
+textbox(s, X0, y + 0.10, CW, 0.9,
+        "协议只有 6 字节头部，其余全是负载——\n把开销留给数据本身。", 11, MUTED, line=1.7)
+footer(s, 14)
+
+# =================================================================== 15 对比
+s = new_slide()
+head(s, "COMPARISON", "换一种方式看它", "没有一种工具适合所有场景。", lead_y=2.34)
+
+cols = ["", "AirLink", "聊天", "网盘", "数据线"]
+col_x = [X0, X0 + 2.16, X0 + 3.56, X0 + 4.62, X0 + 5.68]
+col_w = [2.16, 1.40, 1.06, 1.06, 0.86]
+rows = [
+    ("需要账号", "否", "是", "是", "否"),
+    ("需要联网", "否", "是", "是", "否"),
+    ("经服务器", "否", "是", "是", "否"),
+    ("压缩画质", "不压缩", "会压缩", "不压缩", "不压缩"),
+    ("跨网络", "支持", "支持", "支持", "不支持"),
+    ("免安装", "单文件", "需安装", "需安装", "需驱动"),
+]
+hy = 3.10
+for i, c in enumerate(cols):
+    if i == 0:
+        continue
+    fill = RGBColor(0xDD, 0xE8, 0xFC) if i == 1 else RGBColor(0xF0, 0xF4, 0xFA)
+    sh = rect(s, col_x[i], hy, col_w[i], 0.52, fill=fill, line=None, radius=0.14)
+    shape_text(sh, c, 10, ACC if i == 1 else SUB, bold=True)
+
+for r, (label, *vals) in enumerate(rows):
+    y = hy + 0.64 + r * 0.86
+    if r % 2 == 0:
+        rect(s, X0, y - 0.08, CW, 0.80, fill=RGBColor(0xEF, 0xF3, 0xFA), line=None)
+    textbox(s, col_x[0] + 0.10, y + 0.18, col_w[0] - 0.16, 0.34, label, 10.5, SUB)
+    for c, v in enumerate(vals):
+        good = (c == 0)
+        ok = v in ("否", "不压缩", "支持", "单文件")
+        col = (GREEN if ok else INK) if good else MUTED
+        textbox(s, col_x[c + 1] + 0.04, y + 0.18, col_w[c + 1] - 0.06, 0.34,
+                v, 10, col, bold=good)
+
+textbox(s, X0, 8.62, CW, 1.5,
+        "如果目标只是把文件从 A 送到 B，\n中间那一层其实可以不存在。", 12, SUB, line=1.7)
+footer(s, 15)
+
+# =================================================================== 16 场景
+s = new_slide()
+head(s, "USE CASES", "什么时候用得上", "两台设备在同一个屏幕前，或同一个人在两地。", lead_y=2.34)
+
+scenes = [
+    ("办公室换机", "整目录搬到新机器，不用上传"),
+    ("照片回传", "手机拍完传电脑修图，不损画质"),
+    ("出差在外", "IPv6 直连公司电脑，不用 VPN"),
+    ("断网环境", "同一路由器内照样互传"),
+]
+y = 2.98
+for i, (t, d) in enumerate(scenes):
+    card(s, X0, y, CW, 1.78)
+    num = rect(s, X0 + 0.34, y + 0.52, 0.66, 0.66,
+               fill=RGBColor(0xE6, 0xEE, 0xFD), line=RGBColor(0xC7, 0xD8, 0xF8), radius=0.5)
+    shape_text(num, str(i + 1), 15, ACC, bold=True)
+    textbox(s, X0 + 1.24, y + 0.40, CW - 1.5, 0.4, t, 16, INK, bold=True)
+    textbox(s, X0 + 1.24, y + 0.92, CW - 1.5, 0.45, d, 11.5, SUB)
+    y += 1.98
+footer(s, 16)
+
+# =================================================================== 17 结语
+s = new_slide(RGBColor(0xFA, 0xFB, 0xFE), RGBColor(0xEA, 0xF0, 0xFA))
+
+
+textbox(s, X0, 2.86, CW, 1.2, "两台设备之间，", 36, INK, bold=True, line=1.25)
+textbox(s, X0, 3.92, CW, 1.2, "不该有中间商。", 36, ACC, bold=True, line=1.25)
+textbox(s, X0, 5.10, CW, 0.45, "小、快、直——就这三件事。", 15, SUB)
+
+feats = [("小", "699 KB / 333 KB"), ("快", "点对点直连"), ("直", "不经任何服务器")]
+y = 5.94
+for k, v in feats:
+    card(s, X0, y, CW, 1.20)
+    textbox(s, X0 + 0.40, y + 0.26, 0.9, 0.7, k, 26, ACC, bold=True)
+    textbox(s, X0 + 1.30, y + 0.44, CW - 1.6, 0.4, v, 12, SUB)
+    y += 1.38
+
+rect(s, X0, 10.06, CW, 0.012, fill=RGBColor(0xD8, 0xE1, 0xEF))
+textbox(s, X0, 10.30, CW, 1.0,
+        "AirLink · 隔空快传\nWindows 与 Android 双端就绪", 11, MUTED, line=1.75)
+
+NOTES = [
+ "开场定位：让两台设备直接对话的工具，电脑一个 exe、手机一个 apk，中间不需要任何服务器。",
+ "四个场景对应线、压缩、等待、跨网。共同点：文件必须经过第三方。",
+ "三个不做的边界，三个直接的主线。",
+ "体积是结果不是目标：界面自绘、零框架、零图片资源。",
+ "六项能力是一条完整链路。",
+ "局域网走 UDP 广播，只在同一广播域有效，所以还需要广域网方案。",
+ "二维码里是完整连接串，手机自动判断走哪条路径。",
+ "优先 IPv6，无则退回 UPnP 端口映射。",
+ "非内网来源必须先出示配对码，通过后十分钟免检。",
+ "双向浏览，大文件按块流式传输。",
+ "记录不是事后日志，而是传输过程的一部分。",
+ "四层保活手段叠加，设置页可观测。",
+ "数字都可以核对，不放无法验证的宣称。",
+ "三层结构，两端共用一份协议定义。",
+ "重点是：中间那一层其实可以不存在。",
+ "四个典型场景。",
+ "收尾：两台设备之间不该有中间商。",
+]
+
+for sl, note in zip(prs.slides, NOTES):
+    sl.notes_slide.notes_text_frame.text = note
+
+kinds = ["fade", "push", "wipe", "zoom", "cover", "fade", "push", "fade", "wipe"]
+for i, sl in enumerate(prs.slides):
+    transition(sl, kinds[i % len(kinds)])
+
+prs.save(OUT)
+print("saved", OUT)
